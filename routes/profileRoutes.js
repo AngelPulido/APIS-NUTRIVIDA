@@ -27,7 +27,7 @@ router.get('/', verificarToken, async (req, res) => {
     // 3. Combinar los datos
     res.status(200).json({
       ...usuario,
-      perfil: perfilResult[0] || null // puede ser null si aún no tiene perfil creado
+      perfil: perfilResult[0] || null 
     });
 
   } catch (error) {
@@ -36,4 +36,40 @@ router.get('/', verificarToken, async (req, res) => {
   }
 });
 
+// PUT /api/profile
+router.put('/', verificarToken, async (req, res) => {
+    const { nombre, teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad } = req.body;
+  
+    try {
+      if (nombre) {
+        await pool.query('UPDATE usuarios SET nombre = ?, actualizado_en = NOW() WHERE id = ?', [nombre, req.usuario.id]);
+      }
+  
+      const [perfilExistente] = await pool.query('SELECT * FROM perfiles WHERE usuario_id = ?', [req.usuario.id]);
+  
+      if (perfilExistente.length === 0) {
+        await pool.query(
+          `INSERT INTO perfiles (usuario_id, teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [req.usuario.id, teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad]
+        );
+      } else {
+        // Actualizar perfil existente
+        await pool.query(
+          `UPDATE perfiles 
+           SET teléfono = ?, edad = ?, género = ?, dirección = ?, 
+               altura_cm = ?, peso_kg = ?, especialidad = ?, actualizado_en = NOW()
+           WHERE usuario_id = ?`,
+          [teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad, req.usuario.id]
+        );
+      }
+  
+      res.status(200).json({ mensaje: 'Perfil actualizado exitosamente' });
+  
+    } catch (error) {
+      console.error('Error al actualizar perfil:', error);
+      res.status(500).json({ mensaje: 'Error del servidor' });
+    }
+  });
+  
 module.exports = router;
