@@ -95,4 +95,11 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// POST /api/logout
+router.post('/logout', (req, res) => {
+
+  res.status(200).json({ mensaje: 'Sesión cerrada exitosamente (token eliminado del cliente)' });
+});
+
+
 module.exports = router;
