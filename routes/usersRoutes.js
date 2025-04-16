@@ -40,7 +40,6 @@ router.post('/', verificarToken, verificarRolPermitido('admin'), async (req, res
   
       const hashed = await bcrypt.hash(contraseña, 10);
   
-      // Insertar usuario y obtener su ID
       const [resultado] = await pool.query(
         'INSERT INTO usuarios (nombre, correo, contraseña, rol, creado_en, actualizado_en) VALUES (?, ?, ?, ?, NOW(), NOW())',
         [nombre, correo, hashed, rol]
@@ -48,7 +47,6 @@ router.post('/', verificarToken, verificarRolPermitido('admin'), async (req, res
   
       const nuevoUsuarioId = resultado.insertId;
   
-      // Insertar perfil vacío automáticamente
       await pool.query('INSERT INTO perfiles (usuario_id) VALUES (?)', [nuevoUsuarioId]);
   
       res.status(201).json({ mensaje: 'Usuario y perfil creados correctamente' });
@@ -58,5 +56,37 @@ router.post('/', verificarToken, verificarRolPermitido('admin'), async (req, res
       res.status(500).json({ mensaje: 'Error del servidor' });
     }
   });
+
+  // GET /api/users/:id - Ver detalles de un usuario (solo admin)
+router.get('/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+    const usuarioId = req.params.id;
+  
+    try {
+      // Buscar usuario
+      const [usuarios] = await pool.query(
+        'SELECT id, nombre, correo, rol, creado_en, actualizado_en FROM usuarios WHERE id = ?',
+        [usuarioId]
+      );
+  
+      if (usuarios.length === 0) {
+        return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+      }
+  
+      const usuario = usuarios[0];
+  
+      // Buscar perfil (puede que no exista aún)
+      const [perfil] = await pool.query('SELECT * FROM perfiles WHERE usuario_id = ?', [usuarioId]);
+  
+      res.status(200).json({
+        ...usuario,
+        perfil: perfil[0] || null
+      });
+  
+    } catch (error) {
+      console.error('Error al obtener usuario:', error);
+      res.status(500).json({ mensaje: 'Error del servidor' });
+    }
+  });
+  
   
 module.exports = router;
