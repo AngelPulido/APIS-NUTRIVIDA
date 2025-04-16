@@ -87,6 +87,96 @@ router.get('/:id', verificarToken, verificarRolPermitido('admin'), async (req, r
       res.status(500).json({ mensaje: 'Error del servidor' });
     }
   });
+
+// PUT /api/users/:id - Editar usuario y perfil (solo admin)
+router.put('/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+  const usuarioId = req.params.id;
+  const {
+    nombre,
+    correo,
+    rol,
+    contraseña,
+    teléfono,
+    edad,
+    género,
+    dirección,
+    altura_cm,
+    peso_kg,
+    especialidad
+  } = req.body;
+
+  try {
+    const [usuarios] = await pool.query('SELECT * FROM usuarios WHERE id = ?', [usuarioId]);
+    if (usuarios.length === 0) {
+      return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+    }
+
+    if (correo) {
+      const [existeCorreo] = await pool.query(
+        'SELECT id FROM usuarios WHERE correo = ? AND id != ?',
+        [correo, usuarioId]
+      );
+      if (existeCorreo.length > 0) {
+        return res.status(409).json({ mensaje: 'Este correo ya está en uso por otro usuario' });
+      }
+    }
+
+    // Si incluye contraseña, se hashea
+    let hashedPassword = null;
+    if (contraseña) {
+      if (contraseña.length < 8) {
+        return res.status(400).json({ mensaje: 'La contraseña debe tener al menos 8 caracteres' });
+      }
+      hashedPassword = await bcrypt.hash(contraseña, 10);
+    }
+
+    // Actualizar datos básicos del usuario
+    await pool.query(
+      `UPDATE usuarios SET 
+        nombre = COALESCE(?, nombre),
+        correo = COALESCE(?, correo),
+        rol = COALESCE(?, rol),
+        ${hashedPassword ? 'contraseña = ?, ' : ''}
+        actualizado_en = NOW()
+      WHERE id = ?`,
+      hashedPassword
+        ? [nombre, correo, rol, hashedPassword, usuarioId]
+        : [nombre, correo, rol, usuarioId]
+    );
+
+    // Actualizar o insertar perfil
+    const [perfil] = await pool.query('SELECT * FROM perfiles WHERE usuario_id = ?', [usuarioId]);
+
+    if (perfil.length === 0) {
+      await pool.query(
+        `INSERT INTO perfiles (usuario_id, teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [usuarioId, teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad]
+      );
+    } else {
+      await pool.query(
+        `UPDATE perfiles SET 
+          teléfono = COALESCE(?, teléfono),
+          edad = COALESCE(?, edad),
+          género = COALESCE(?, género),
+          dirección = COALESCE(?, dirección),
+          altura_cm = COALESCE(?, altura_cm),
+          peso_kg = COALESCE(?, peso_kg),
+          especialidad = COALESCE(?, especialidad),
+          actualizado_en = NOW()
+         WHERE usuario_id = ?`,
+        [teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad, usuarioId]
+      );
+    }
+
+    res.status(200).json({ mensaje: 'Usuario y perfil actualizados correctamente' });
+
+  } catch (error) {
+    console.error('Error al editar usuario:', error);
+    res.status(500).json({ mensaje: 'Error del servidor' });
+  }
+});
+
   
   
 module.exports = router;
