@@ -57,6 +57,69 @@ router.post('/', verificarToken, verificarRolPermitido('admin'), async (req, res
     }
   });
 
+   // GET /api/statistics - Ver estadísticas del sistema (solo admin)
+   router.get('/statistics', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+    console.log('Usuario:', req.usuario); 
+    try {
+      const [
+        [totalUsuarios],
+        [admins],
+        [nutriologos],
+        [pacientes],
+        [totalPerfiles],
+        [totalCitas],
+        [totalMensajes],
+        [totalProgresos],
+        [citasMes],
+        [progresosMes]
+      ] = await Promise.all([
+        pool.query('SELECT COUNT(*) AS total FROM usuarios'),
+        pool.query("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'admin'"),
+        pool.query("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'nutriologo'"),
+        pool.query("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'paciente'"),
+        pool.query('SELECT COUNT(*) AS total FROM perfiles'),
+        pool.query('SELECT COUNT(*) AS total FROM citas'),
+        pool.query('SELECT COUNT(*) AS total FROM mensajes'),
+        pool.query('SELECT COUNT(*) AS total FROM progresos_fisicos'),
+  
+        // ESTADÍSTICAS DE ESTE MES
+        pool.query(`
+          SELECT COUNT(*) AS total FROM citas 
+          WHERE MONTH(fecha) = MONTH(CURRENT_DATE()) 
+            AND YEAR(fecha) = YEAR(CURRENT_DATE())
+        `),
+        pool.query(`
+          SELECT COUNT(*) AS total FROM progresos_fisicos 
+          WHERE MONTH(fecha_registro) = MONTH(CURRENT_DATE()) 
+            AND YEAR(fecha_registro) = YEAR(CURRENT_DATE())
+        `)
+      ]);
+  
+      res.status(200).json({
+        usuarios: {
+          total: totalUsuarios[0].total,
+          admin: admins[0].total,
+          nutriologo: nutriologos[0].total,
+          paciente: pacientes[0].total
+        },
+        perfiles: totalPerfiles[0].total,
+        citas: {
+          total: totalCitas[0].total,
+          este_mes: citasMes[0].total
+        },
+        mensajes: totalMensajes[0].total,
+        progresos_fisicos: {
+          total: totalProgresos[0].total,
+          este_mes: progresosMes[0].total
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error al obtener estadísticas:', error);
+      res.status(500).json({ mensaje: 'Error del servidor' });
+    }
+  });
+
   // GET /api/users/:id - Ver detalles de un usuario (solo admin)
 router.get('/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
     const usuarioId = req.params.id;
@@ -177,6 +240,26 @@ router.put('/:id', verificarToken, verificarRolPermitido('admin'), async (req, r
   }
 });
 
+// DELETE /api/users/:id - Eliminar usuario y sus datos relacionados (solo admin)
+router.delete('/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+    const usuarioId = req.params.id;
   
+    try {
+      const [usuarios] = await pool.query('SELECT * FROM usuarios WHERE id = ?', [usuarioId]);
+      if (usuarios.length === 0) {
+        return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+      }
+  
+      await pool.query('DELETE FROM usuarios WHERE id = ?', [usuarioId]);
+  
+      res.status(200).json({ mensaje: 'Usuario y sus datos han sido eliminados correctamente' });
+  
+    } catch (error) {
+      console.error('Error al eliminar usuario:', error);
+      res.status(500).json({ mensaje: 'Error del servidor' });
+    }
+  });
+  console.log('Entró a la ruta /statistics');
+ 
   
 module.exports = router;

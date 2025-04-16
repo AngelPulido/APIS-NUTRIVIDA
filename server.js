@@ -32,6 +32,7 @@ app.use('/api/profile', require('./routes/profileRoutes'));
 
 app.use('/api/users', require('./routes/usersRoutes'));
 
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => console.log(`Servidor en http://localhost:${PORT}`));

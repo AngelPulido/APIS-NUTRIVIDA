@@ -11,6 +11,7 @@ function verificarToken(req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.usuario = decoded; // Aquí queda disponible: req.usuario.id, req.usuario.rol, etc.
+    console.log('Middleware ejecutado. Token decodificado:', decoded);
     next();
   } catch (err) {
     return res.status(403).json({ mensaje: 'Token inválido o expirado' });
