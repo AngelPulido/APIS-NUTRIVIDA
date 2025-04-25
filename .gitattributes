@@ -1,0 +1,9 @@
+# Normaliza los finales de línea en todos los archivos
+* text=auto
+
+# Fuerza a que los archivos PHP tengan finales de línea LF
+*.php text eol=lf
+
+# Fuerza a que los archivos JS y JSON tengan finales de línea LF
+*.js  text eol=lf
+*.json text eol=lf
