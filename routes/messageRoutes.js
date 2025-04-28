@@ -8,7 +8,7 @@ const verificarRolPermitido = require('../middleware/verifyRole');
 router.use(verificarToken);
 
 // Obtener mensajes del usuario autenticado
-router.get('/', async (req, res) => {
+router.get('/messages', async (req, res) => {
   const userId = req.usuario.id;
 
   try {
@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
 });
 
 // Enviar mensaje (cualquier usuario autenticado puede)
-router.post('/', async (req, res) => {
+router.post('/messages/', async (req, res) => {
   const { contenido, destinatario_id } = req.body;
   const remitente_id = req.usuario.id;
 
@@ -41,7 +41,7 @@ router.post('/', async (req, res) => {
 });
 
 // Editar mensaje propio
-router.put('/:id', async (req, res) => {
+router.put('/messages/:id', async (req, res) => {
   const { contenido } = req.body;
   const { id } = req.params;
   const remitente_id = req.usuario.id;
@@ -64,7 +64,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Eliminar mensaje propio
-router.delete('/:id', async (req, res) => {
+router.delete('/messages/:id', async (req, res) => {
   const { id } = req.params;
   const remitente_id = req.usuario.id;
 

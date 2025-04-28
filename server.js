@@ -28,13 +28,13 @@
   app.use(express.json());
 
   // Tus rutas principales
-  app.use('/api/auth', require('./routes/authRoutes'));
-  app.use('/api/profile', require('./routes/profileRoutes'));
-  app.use('/api/users', require('./routes/usersRoutes'));
+  app.use('/api', require('./routes/authRoutes'));
+  app.use('/api', require('./routes/profileRoutes'));
+  app.use('/api', require('./routes/usersRoutes'));
 
   // Tus rutas de paciente
-  app.use('/api/paciente', require('./routes/pacienteRoutes'));
-  app.use('/api/nutriologo', require('./routes/nutriologoRoutes'));
+  app.use('/api', require('./routes/pacienteRoutes'));
+  app.use('/api', require('./routes/nutriologoRoutes'));
 
 
 

@@ -6,7 +6,7 @@ const verificarToken = require('../middleware/authMiddleware');
 const verificarRolPermitido = require('../middleware/verifyRole');
 
 // GET /api/users - Solo admins pueden ver todos los usuarios
-router.get('/', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+router.get('/users', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
   try {
     const [usuarios] = await pool.query(
       'SELECT id, nombre, correo, rol, creado_en, actualizado_en FROM usuarios'
@@ -20,7 +20,7 @@ router.get('/', verificarToken, verificarRolPermitido('admin'), async (req, res)
 });
 
 // POST /api/users - Crear nuevo usuario (solo admin)
-router.post('/', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+router.post('/users', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
     const { nombre, correo, contraseña, rol } = req.body;
   
     try {
@@ -121,7 +121,7 @@ router.post('/', verificarToken, verificarRolPermitido('admin'), async (req, res
   });
 
   // GET /api/users/:id - Ver detalles de un usuario (solo admin)
-router.get('/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+router.get('/users/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
     const usuarioId = req.params.id;
   
     try {
@@ -152,7 +152,7 @@ router.get('/:id', verificarToken, verificarRolPermitido('admin'), async (req, r
   });
 
 // PUT /api/users/:id - Editar usuario y perfil (solo admin)
-router.put('/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+router.put('/users/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
   const usuarioId = req.params.id;
   const {
     nombre,
@@ -241,7 +241,7 @@ router.put('/:id', verificarToken, verificarRolPermitido('admin'), async (req, r
 });
 
 // DELETE /api/users/:id - Eliminar usuario y sus datos relacionados (solo admin)
-router.delete('/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+router.delete('/users/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
     const usuarioId = req.params.id;
   
     try {

@@ -4,7 +4,7 @@ const { pool } = require('../config/db');
 const verificarToken = require('../middleware/authMiddleware');
 
 // GET /api/profile
-router.get('/', verificarToken, async (req, res) => {
+router.get('/profile', verificarToken, async (req, res) => {
   try {
     // 1. Obtener usuario
     const [usuarioResult] = await pool.query(
@@ -37,7 +37,7 @@ router.get('/', verificarToken, async (req, res) => {
 });
 
 // PUT /api/profile
-router.put('/', verificarToken, async (req, res) => {
+router.put('/profile', verificarToken, async (req, res) => {
     const { nombre, teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad } = req.body;
   
     try {
