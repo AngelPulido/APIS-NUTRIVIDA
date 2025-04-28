@@ -34,6 +34,8 @@
 
   // Tus rutas de paciente
   app.use('/api/paciente', require('./routes/pacienteRoutes'));
+  app.use('/api/nutriologo', require('./routes/nutriologoRoutes'));
+
 
 
   const PORT = process.env.PORT || 5000;
