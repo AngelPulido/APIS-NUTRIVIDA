@@ -38,7 +38,8 @@ router.get('/profile', verificarToken, async (req, res) => {
 
 // PUT /api/profile
 router.put('/profile', verificarToken, async (req, res) => {
-    const { nombre, teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad } = req.body;
+    console.log('>>> BODY /api/profile:', req.body);
+    const { nombre, telefono, edad, genero, direccion, altura_cm, peso_kg, especialidad } = req.body;
   
     try {
       if (nombre) {
@@ -49,18 +50,18 @@ router.put('/profile', verificarToken, async (req, res) => {
   
       if (perfilExistente.length === 0) {
         await pool.query(
-          `INSERT INTO perfiles (usuario_id, teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad) 
+          `INSERT INTO perfiles (usuario_id, telefono, edad, genero, direccion, altura_cm, peso_kg, especialidad) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [req.usuario.id, teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad]
+          [req.usuario.id, telefono, edad, genero, direccion, altura_cm, peso_kg, especialidad]
         );
       } else {
         // Actualizar perfil existente
         await pool.query(
           `UPDATE perfiles 
-           SET teléfono = ?, edad = ?, género = ?, dirección = ?, 
+           SET telefono = ?, edad = ?, genero = ?, direccion = ?, 
                altura_cm = ?, peso_kg = ?, especialidad = ?, actualizado_en = NOW()
            WHERE usuario_id = ?`,
-          [teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad, req.usuario.id]
+          [telefono, edad, genero, direccion, altura_cm, peso_kg, especialidad, req.usuario.id]
         );
       }
   

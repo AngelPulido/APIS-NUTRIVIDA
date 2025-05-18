@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db');
 const verificarToken = require('../middleware/authMiddleware');
-const verificarRolPermitido = require('../middleware/verifyRole');
 
 // Todas las rutas de mensajes requieren autenticación
 router.use(verificarToken);
@@ -24,7 +23,7 @@ router.get('/messages', async (req, res) => {
 });
 
 // Enviar mensaje (cualquier usuario autenticado puede)
-router.post('/messages/', async (req, res) => {
+router.post('/messages', async (req, res) => {
   const { contenido, destinatario_id } = req.body;
   const remitente_id = req.usuario.id;
 

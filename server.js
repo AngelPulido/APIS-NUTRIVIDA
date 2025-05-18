@@ -35,8 +35,11 @@
   // Tus rutas de paciente
   app.use('/api', require('./routes/pacienteRoutes'));
   app.use('/api', require('./routes/nutriologoRoutes'));
+  app.use('/api', require('./routes/messageRoutes'));
+
 
 
 
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => console.log(`Servidor corriendo en http://localhost:${PORT}`));
+  
