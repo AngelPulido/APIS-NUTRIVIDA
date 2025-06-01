@@ -152,93 +152,149 @@
     });
 
   // PUT /api/users/:id - Editar usuario y perfil (solo admin)
-  router.put('/users/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
-    const usuarioId = req.params.id;
-    const {
+  // PUT /api/users/:id - Editar usuario y perfil (solo admin)
+router.put('/users/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+  console.log('>>> BODY /api/users:id', req.body);
+  const usuarioId = req.params.id;
+  const {
       nombre,
       correo,
       rol,
       contraseña,
-      teléfono,
-      edad,
-      género,
-      dirección,
-      altura_cm,
-      peso_kg,
-      especialidad
-    } = req.body;
+      telefono = null,
+      edad = null,
+      genero = null,
+      direccion = null,
+      altura_cm = null,
+      peso_kg = null,
+      especialidad = null
+  } = req.body;
 
-    try {
+  try {
+      // Validaciones básicas
+      if (!nombre || !correo || !rol) {
+          return res.status(400).json({ 
+              success: false,
+              mensaje: 'Nombre, correo y rol son obligatorios' 
+          });
+      }
+
+      const rolesPermitidos = ['admin', 'nutriologo', 'paciente'];
+      if (!rolesPermitidos.includes(rol)) {
+          return res.status(400).json({ 
+              success: false,
+              mensaje: 'Rol no válido' 
+          });
+      }
+
+      // Verificar si el usuario existe
       const [usuarios] = await pool.query('SELECT * FROM usuarios WHERE id = ?', [usuarioId]);
       if (usuarios.length === 0) {
-        return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+          return res.status(404).json({ 
+              success: false,
+              mensaje: 'Usuario no encontrado' 
+          });
       }
 
-      if (correo) {
-        const [existeCorreo] = await pool.query(
+      // Verificar si el correo ya está en uso por otro usuario
+      const [existeCorreo] = await pool.query(
           'SELECT id FROM usuarios WHERE correo = ? AND id != ?',
           [correo, usuarioId]
-        );
-        if (existeCorreo.length > 0) {
-          return res.status(409).json({ mensaje: 'Este correo ya está en uso por otro usuario' });
-        }
+      );
+      if (existeCorreo.length > 0) {
+          return res.status(409).json({ 
+              success: false,
+              mensaje: 'Este correo ya está en uso por otro usuario' 
+          });
       }
 
-      // Si incluye contraseña, se hashea
+      // Hashear contraseña si se proporciona
       let hashedPassword = null;
       if (contraseña) {
-        if (contraseña.length < 8) {
-          return res.status(400).json({ mensaje: 'La contraseña debe tener al menos 8 caracteres' });
-        }
-        hashedPassword = await bcrypt.hash(contraseña, 10);
+          if (contraseña.length < 8) {
+              return res.status(400).json({ 
+                  success: false,
+                  mensaje: 'La contraseña debe tener al menos 8 caracteres' 
+              });
+          }
+          hashedPassword = await bcrypt.hash(contraseña, 10);
       }
 
-      // Actualizar datos básicos del usuario
-      await pool.query(
-        `UPDATE usuarios SET 
-          nombre = COALESCE(?, nombre),
-          correo = COALESCE(?, correo),
-          rol = COALESCE(?, rol),
-          ${hashedPassword ? 'contraseña = ?, ' : ''}
-          actualizado_en = NOW()
-        WHERE id = ?`,
-        hashedPassword
-          ? [nombre, correo, rol, hashedPassword, usuarioId]
-          : [nombre, correo, rol, usuarioId]
-      );
+      // Iniciar transacción
+      await pool.query('START TRANSACTION');
 
-      // Actualizar o insertar perfil
-      const [perfil] = await pool.query('SELECT * FROM perfiles WHERE usuario_id = ?', [usuarioId]);
+      try {
+          // Actualizar datos básicos del usuario
+          await pool.query(
+              `UPDATE usuarios SET 
+                  nombre = ?,
+                  correo = ?,
+                  rol = ?,
+                  ${hashedPassword ? 'contraseña = ?, ' : ''}
+                  actualizado_en = NOW()
+              WHERE id = ?`,
+              hashedPassword
+                  ? [nombre, correo, rol, hashedPassword, usuarioId]
+                  : [nombre, correo, rol, usuarioId]
+          );
 
-      if (perfil.length === 0) {
-        await pool.query(
-          `INSERT INTO perfiles (usuario_id, teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [usuarioId, teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad]
-        );
-      } else {
-        await pool.query(
-          `UPDATE perfiles SET 
-            teléfono = COALESCE(?, teléfono),
-            edad = COALESCE(?, edad),
-            género = COALESCE(?, género),
-            dirección = COALESCE(?, dirección),
-            altura_cm = COALESCE(?, altura_cm),
-            peso_kg = COALESCE(?, peso_kg),
-            especialidad = COALESCE(?, especialidad),
-            actualizado_en = NOW()
-          WHERE usuario_id = ?`,
-          [teléfono, edad, género, dirección, altura_cm, peso_kg, especialidad, usuarioId]
-        );
+          // Verificar si existe perfil
+          const [perfil] = await pool.query('SELECT * FROM perfiles WHERE usuario_id = ?', [usuarioId]);
+
+          if (perfil.length === 0) {
+              // Crear nuevo perfil
+              await pool.query(
+                  `INSERT INTO perfiles 
+                  (usuario_id, telefono, edad, genero, direccion, altura_cm, peso_kg, especialidad)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                  [usuarioId, telefono, edad, genero, direccion, altura_cm, peso_kg, especialidad]
+              );
+          } else {
+              // Actualizar perfil existente
+              await pool.query(
+                  `UPDATE perfiles SET 
+                      telefono = ?,
+                      edad = ?,
+                      genero = ?,
+                      direccion = ?,
+                      altura_cm = ?,
+                      peso_kg = ?,
+                      especialidad = ?,
+                      actualizado_en = NOW()
+                  WHERE usuario_id = ?`,
+                  [telefono, edad, genero, direccion, altura_cm, peso_kg, especialidad, usuarioId]
+              );
+          }
+
+          // Confirmar transacción
+          await pool.query('COMMIT');
+
+          res.status(200).json({ 
+              success: true,
+              mensaje: 'Usuario y perfil actualizados correctamente',
+              usuario: {
+                  id: usuarioId,
+                  nombre,
+                  correo,
+                  rol
+              }
+          });
+
+      } catch (error) {
+          // Revertir transacción en caso de error
+          await pool.query('ROLLBACK');
+          throw error;
       }
 
-      res.status(200).json({ mensaje: 'Usuario y perfil actualizados correctamente' });
-
-    } catch (error) {
+  } catch (error) {
       console.error('Error al editar usuario:', error);
-      res.status(500).json({ mensaje: 'Error del servidor' });
-    }
-  });
+      res.status(500).json({ 
+          success: false,
+          mensaje: 'Error del servidor al actualizar el usuario',
+          error: error.message 
+      });
+  }
+});
 
   // DELETE /api/users/:id - Eliminar usuario y sus datos relacionados (solo admin)
   router.delete('/users/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
