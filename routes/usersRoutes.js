@@ -7,10 +7,27 @@
 
   // GET /api/users - Solo admins pueden ver todos los usuarios
   router.get('/users', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+    console.log('>>> BODY /api/users:', req.body);
     try {
-      const [usuarios] = await pool.query(
-        'SELECT id, nombre, correo, rol, creado_en, actualizado_en FROM usuarios'
-      );
+      const [usuarios] = await pool.query(`
+        SELECT 
+          u.id, 
+          u.nombre, 
+          u.correo, 
+          u.rol, 
+          u.creado_en, 
+          u.actualizado_en, 
+          p.avatar,
+          p.telefono, 
+          p.edad,
+          p.genero,
+          p.direccion,
+          p.altura_cm,
+          p.peso_kg,
+          p.especialidad
+        FROM usuarios u
+        LEFT JOIN perfiles p ON u.id = p.usuario_id
+      `);
 
       res.status(200).json(usuarios);
     } catch (error) {
@@ -21,6 +38,7 @@
 
   // POST /api/users - Crear nuevo usuario (solo admin)
   router.post('/users', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+    
       const { nombre, correo, contraseña, rol } = req.body;
     
       try {
