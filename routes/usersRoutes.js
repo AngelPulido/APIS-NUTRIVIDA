@@ -36,107 +36,226 @@
     }
   });
 
-  // POST /api/users - Crear nuevo usuario (solo admin)
-  router.post('/users', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
-    
-      const { nombre, correo, contraseña, rol } = req.body;
-    
-      try {
+ // POST /api/users - Crear nuevo usuario (solo admin)
+router.post('/users', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
+    const { 
+        nombre, 
+        correo, 
+        contraseña, 
+        rol,
+        // Campos del perfil
+        telefono,
+        edad,
+        genero,
+        direccion,
+        altura_cm,
+        peso_kg,
+        especialidad,
+        avatar
+    } = req.body;
+
+    try {
+        // Validación de campos obligatorios
         if (!nombre || !correo || !contraseña || !rol) {
-          return res.status(400).json({ mensaje: 'Todos los campos son obligatorios' });
+            return res.status(400).json({ mensaje: 'Todos los campos son obligatorios' });
         }
-    
+
         const rolesPermitidos = ['admin', 'nutriologo', 'paciente'];
         if (!rolesPermitidos.includes(rol)) {
-          return res.status(400).json({ mensaje: 'Rol no válido' });
+            return res.status(400).json({ mensaje: 'Rol no válido' });
         }
-    
+
+        // Validar campos específicos según rol
+        if (rol === 'nutriologo' && !especialidad) {
+            return res.status(400).json({ mensaje: 'La especialidad es obligatoria para nutriólogos' });
+        }
+
+        if (rol === 'paciente' && (!altura_cm || !peso_kg)) {
+            return res.status(400).json({ mensaje: 'Altura y peso son obligatorios para pacientes' });
+        }
+
+        // Verificar si el correo ya existe
         const [existente] = await pool.query('SELECT * FROM usuarios WHERE correo = ?', [correo]);
         if (existente.length > 0) {
-          return res.status(409).json({ mensaje: 'Ya existe un usuario con ese correo' });
+            return res.status(409).json({ mensaje: 'Ya existe un usuario con ese correo' });
         }
-    
+
+        // Hashear la contraseña
         const hashed = await bcrypt.hash(contraseña, 10);
-    
-        const [resultado] = await pool.query(
-          'INSERT INTO usuarios (nombre, correo, contraseña, rol, creado_en, actualizado_en) VALUES (?, ?, ?, ?, NOW(), NOW())',
-          [nombre, correo, hashed, rol]
-        );
-    
-        const nuevoUsuarioId = resultado.insertId;
-    
-        await pool.query('INSERT INTO perfiles (usuario_id) VALUES (?)', [nuevoUsuarioId]);
-    
-        res.status(201).json({ mensaje: 'Usuario y perfil creados correctamente' });
-    
-      } catch (error) {
+
+        // Iniciar transacción para asegurar la integridad de los datos
+        const connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            // Insertar usuario
+            const [resultado] = await connection.query(
+                'INSERT INTO usuarios (nombre, correo, contraseña, rol, creado_en, actualizado_en) VALUES (?, ?, ?, ?, NOW(), NOW())',
+                [nombre, correo, hashed, rol]
+            );
+
+            const nuevoUsuarioId = resultado.insertId;
+
+            // Insertar perfil con los datos adicionales
+            await connection.query(
+                `INSERT INTO perfiles 
+                (usuario_id, telefono, edad, genero, direccion, altura_cm, peso_kg, especialidad, avatar) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    nuevoUsuarioId,
+                    telefono || null,
+                    edad || null,
+                    genero || null,
+                    direccion || null,
+                    altura_cm || null,
+                    peso_kg || null,
+                    especialidad || null,
+                    avatar || null
+                ]
+            );
+
+            // Confirmar transacción
+            await connection.commit();
+            connection.release();
+
+            res.status(201).json({ mensaje: 'Usuario y perfil creados correctamente' });
+
+        } catch (error) {
+            // Revertir transacción en caso de error
+            await connection.rollback();
+            connection.release();
+            throw error;
+        }
+
+    } catch (error) {
         console.error('Error al crear usuario:', error);
         res.status(500).json({ mensaje: 'Error del servidor' });
-      }
-    });
+    }
+});
 
-    // GET /api/statistics - Ver estadísticas del sistema (solo admin)
     router.get('/statistics', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
-      console.log('Usuario:', req.usuario); 
-      try {
-        const [
-          [totalUsuarios],
-          [admins],
-          [nutriologos],
-          [pacientes],
-          [totalPerfiles],
-          [totalCitas],
-          [totalMensajes],
-          [totalProgresos],
-          [citasMes],
-          [progresosMes]
-        ] = await Promise.all([
-          pool.query('SELECT COUNT(*) AS total FROM usuarios'),
-          pool.query("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'admin'"),
-          pool.query("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'nutriologo'"),
-          pool.query("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'paciente'"),
-          pool.query('SELECT COUNT(*) AS total FROM perfiles'),
-          pool.query('SELECT COUNT(*) AS total FROM citas'),
-          pool.query('SELECT COUNT(*) AS total FROM mensajes'),
-          pool.query('SELECT COUNT(*) AS total FROM progresos_fisicos'),
-    
-          // ESTADÍSTICAS DE ESTE MES
-          pool.query(`
-            SELECT COUNT(*) AS total FROM citas 
-            WHERE MONTH(fecha) = MONTH(CURRENT_DATE()) 
-              AND YEAR(fecha) = YEAR(CURRENT_DATE())
-          `),
-          pool.query(`
-            SELECT COUNT(*) AS total FROM progresos_fisicos 
-            WHERE MONTH(fecha_registro) = MONTH(CURRENT_DATE()) 
-              AND YEAR(fecha_registro) = YEAR(CURRENT_DATE())
-          `)
-        ]);
-    
-        res.status(200).json({
-          usuarios: {
-            total: totalUsuarios[0].total,
-            admin: admins[0].total,
-            nutriologo: nutriologos[0].total,
-            paciente: pacientes[0].total
-          },
-          perfiles: totalPerfiles[0].total,
-          citas: {
-            total: totalCitas[0].total,
-            este_mes: citasMes[0].total
-          },
-          mensajes: totalMensajes[0].total,
-          progresos_fisicos: {
-            total: totalProgresos[0].total,
-            este_mes: progresosMes[0].total
-          }
-        });
-    
-      } catch (error) {
-        console.error('Error al obtener estadísticas:', error);
-        res.status(500).json({ mensaje: 'Error del servidor' });
-      }
-    });
+      console.log('>>> BODY /api/statistics', req.body);
+    try {
+      // 1) Ejecutamos todas las consultas en paralelo, 
+      //    desestructurando [rows, fields] para quedarnos solo con rows:
+      const [
+        [ totalUsuariosRows ],     // totalUsuariosRows será [{ total: X }]
+        [ adminsRows ],            // adminsRows será [{ total: Y }]
+        [ nutriologosRows ],
+        [ pacientesRows ],
+        [ totalPerfilesRows ],
+        [ totalCitasRows ],
+        [ totalMensajesRows ],
+        [ totalProgresosRows ],
+        [ citasMesRows ],
+        [ progresosMesRows ],
+        [ citasPorMesRows ],       // citasPorMesRows será un array de objetos { mes: 'Enero', total: N }, etc.
+        [ usuariosPorMesRows ],
+        [ progresosPorMesRows ]
+      ] = await Promise.all([
+        pool.query('SELECT COUNT(*) AS total FROM usuarios'),
+        pool.query("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'admin'"),
+        pool.query("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'nutriologo'"),
+        pool.query("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'paciente'"),
+        pool.query('SELECT COUNT(*) AS total FROM perfiles'),
+        pool.query('SELECT COUNT(*) AS total FROM citas'),
+        pool.query('SELECT COUNT(*) AS total FROM mensajes'),
+        pool.query('SELECT COUNT(*) AS total FROM progresos_fisicos'),
+        pool.query(`
+          SELECT COUNT(*) AS total 
+          FROM citas 
+          WHERE MONTH(fecha) = MONTH(CURRENT_DATE()) 
+            AND YEAR(fecha) = YEAR(CURRENT_DATE())
+        `),
+        pool.query(`
+          SELECT COUNT(*) AS total 
+          FROM progresos_fisicos 
+          WHERE MONTH(fecha_registro) = MONTH(CURRENT_DATE()) 
+            AND YEAR(fecha_registro) = YEAR(CURRENT_DATE())
+        `),
+        pool.query(`
+          SELECT 
+            MONTHNAME(fecha) AS mes, 
+            COUNT(*) AS total 
+          FROM citas
+          WHERE fecha >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+          GROUP BY MONTH(fecha), MONTHNAME(fecha)
+          ORDER BY MONTH(fecha)
+        `),
+        pool.query(`
+          SELECT 
+            MONTHNAME(creado_en) AS mes, 
+            COUNT(*) AS total 
+          FROM usuarios
+          WHERE creado_en >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+          GROUP BY MONTH(creado_en), MONTHNAME(creado_en)
+          ORDER BY MONTH(creado_en)
+        `),
+        pool.query(`
+          SELECT 
+            MONTHNAME(fecha_registro) AS mes, 
+            COUNT(*) AS total 
+          FROM progresos_fisicos
+          WHERE fecha_registro >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+          GROUP BY MONTH(fecha_registro), MONTHNAME(fecha_registro)
+          ORDER BY MONTH(fecha_registro)
+        `)
+      ]);
+
+      // 2) Extraemos los valores de total de cada array de filas
+      const totalUsuarios    = totalUsuariosRows[0]?.total    ?? 0;
+      const totalAdmins      = adminsRows[0]?.total           ?? 0;
+      const totalNutriologos = nutriologosRows[0]?.total      ?? 0;
+      const totalPacientes   = pacientesRows[0]?.total        ?? 0;
+      const totalPerfiles    = totalPerfilesRows[0]?.total    ?? 0;
+      const totalCitas       = totalCitasRows[0]?.total       ?? 0;
+      const totalMensajes    = totalMensajesRows[0]?.total    ?? 0;
+      const totalProgresos   = totalProgresosRows[0]?.total   ?? 0;
+
+      // 3) Este mes
+      const citasEsteMes     = citasMesRows[0]?.total         ?? 0;
+      const progresosEsteMes = progresosMesRows[0]?.total     ?? 0;
+
+      // 4) “Por mes” (array de filas o vacío)
+      const citasPorMes     = Array.isArray(citasPorMesRows)    ? citasPorMesRows    : [];
+      const usuariosPorMes  = Array.isArray(usuariosPorMesRows) ? usuariosPorMesRows : [];
+      const progresosPorMes = Array.isArray(progresosPorMesRows)? progresosPorMesRows: [];
+
+      // 5) Creamos el arreglo de “meses” filtrando null/undefined
+      const meses = citasPorMes
+        .map(row => row.mes)
+        .filter(m => m !== null && m !== undefined);
+
+      // 6) Devolvemos el JSON con los datos correctos
+      res.status(200).json({
+        usuarios: {
+          total: totalUsuarios,
+          admin: totalAdmins,
+          nutriologo: totalNutriologos,
+          paciente: totalPacientes
+        },
+        perfiles: totalPerfiles,
+        citas: {
+          total: totalCitas,
+          este_mes: citasEsteMes,
+          por_mes: citasPorMes
+        },
+        mensajes: totalMensajes,
+        progresos_fisicos: {
+          total: totalProgresos,
+          este_mes: progresosEsteMes,
+          por_mes: progresosPorMes
+        },
+        usuarios_por_mes: usuariosPorMes,
+        meses: meses
+      });
+    } catch (error) {
+      console.error('Error al obtener estadísticas:', error);
+      res.status(500).json({ mensaje: 'Error del servidor' });
+    }
+  });
+
+
 
     // GET /api/users/:id - Ver detalles de un usuario (solo admin)
   router.get('/users/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
@@ -169,7 +288,6 @@
       }
     });
 
-  // PUT /api/users/:id - Editar usuario y perfil (solo admin)
   // PUT /api/users/:id - Editar usuario y perfil (solo admin)
 router.put('/users/:id', verificarToken, verificarRolPermitido('admin'), async (req, res) => {
   console.log('>>> BODY /api/users:id', req.body);
